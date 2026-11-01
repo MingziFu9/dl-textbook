@@ -25,6 +25,8 @@ URLS = {
     "imagenette160": "https://github.com/ultralytics/assets/releases/download/v0.0.0/imagenette160.zip",
     "waimai": "https://raw.githubusercontent.com/SophonPlus/ChineseNlpCorpus/master/datasets/waimai_10k/waimai_10k.csv",
     "temperature": "https://raw.githubusercontent.com/jbrownlee/Datasets/master/daily-min-temperatures.csv",
+    "resnet18": "https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights/"
+                "resnet18_a1_0-d63eafa0.pth",
 }
 
 CIFAR10_CN = ["飞机", "汽车", "鸟", "猫", "鹿", "狗", "青蛙", "马", "船", "卡车"]
@@ -114,6 +116,16 @@ def load_imagenette(train=True, n_per_class=None, size=96):
     n = n_per_class or 10000
     x, y = _load_folder(root / split, classes, n, size, DATA / f"imagenette_{split}_{n}_{size}.pt")
     return x.float() / 255.0, y, [IMAGENETTE_CN[c] for c in classes]
+
+
+def load_pretrained_resnet18():
+    """在 ImageNet（128 万张照片、1000 类）上训练好的 ResNet18。
+    权重文件来自开源项目 timm（约 45 MB），只含参数，用 weights_only=True 安全读取，装进 torchvision 的 resnet18 结构。"""
+    from torchvision.models import resnet18
+    model = resnet18()
+    state = torch.load(download("resnet18"), map_location="cpu", weights_only=True)
+    model.load_state_dict(state)
+    return model
 
 
 def load_waimai():
