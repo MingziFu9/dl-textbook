@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CNN 尺寸与参数计算器</title>
+<link rel="stylesheet" href="../common/sim.css">
+<style>
+.layers { max-width:760px; overflow-x:auto; }
+table.t td.l { text-align:left; }
+table.t tr.err td { background:#ffebee; }
+table.t td.shape { font-family:"JetBrains Mono",Consolas,monospace; font-size:12.5px; }
+.boxes { display:flex; align-items:flex-end; gap:6px; flex-wrap:wrap; margin-top:10px; min-height:60px; }
+.boxes div { background:var(--soft); border:1px solid var(--accent); border-radius:3px; font-size:10px; color:var(--accent); text-align:center; display:flex; align-items:center; justify-content:center; }
+.add select, .add input { width:4.6em; }
+.add #kind { width:auto; }
+table.t td { white-space:nowrap; }
+table.t td.l:nth-child(4) { white-space:normal; min-width:14em; }
+.add label { font-size:12px; color:var(--muted); }
+button.x { border:none; color:var(--neg); padding:0 4px; }
+</style>
+</head>
+<body>
+<h1>CNN 尺寸与参数计算器</h1>
+<div class="sub">选一个输入，往下加层，表格自动算出每一层输出的形状（通道×高×宽）和参数个数。尺寸算错的层会标红。</div>
+<div class="row ex"><span class="lbl">输入：</span>
+  <button data-in="1,28,28">手写数字 1×28×28</button>
+  <button data-in="3,32,32">CIFAR-10 3×32×32</button>
+  <button data-in="3,96,96">照片 3×96×96</button>
+  <button data-in="3,224,224">照片 3×224×224</button>
+</div>
+<div class="row ex"><span class="lbl">现成例子：</span>
+  <button id="pre-lab52" data-pre="lab52">实验 5-2 的 CNN</button>
+  <button id="pre-lenet" data-pre="lenet">LeNet 风格（手写数字）</button>
+  <button id="pre-vgg" data-pre="vgg">VGG 风格小网络</button>
+  <button id="pre-bad" data-pre="bad">尺寸出错的例子</button>
+  <button id="pre-clear" data-pre="clear">清空</button>
+</div>
+<div class="row add">
+  <select id="kind">
+    <option value="conv">卷积 Conv2d</option>
+    <option value="pool">最大池化 MaxPool2d</option>
+    <option value="flat">摊平 Flatten</option>
+    <option value="fc">全连接 Linear</option>
+  </select>
+  <span id="convArgs"><label>卷积核个数</label><input id="oc" type="number" value="16" min="1">
+  <label>大小</label><select id="k"><option>1</option><option selected>3</option><option>5</option><option>7</option></select>
+  <label>步幅</label><select id="s"><option selected>1</option><option>2</option></select>
+  <label>填充</label><select id="p"><option>0</option><option selected>1</option><option>2</option><option>3</option></select></span>
+  <span id="poolArgs" hidden><label>窗口</label><select id="pk"><option selected>2</option><option>3</option></select></span>
+  <span id="fcArgs" hidden><label>输出个数</label><input id="fo" type="number" value="10" min="1"></span>
+  <button class="main" id="add">加一层</button>
+</div>
+<div class="layers"><table class="t" id="tab"></table></div>
+<div class="boxes" id="boxes"></div>
+<div class="msg" id="msg"></div>
+<div class="note">计算规则（与 PyTorch 相同）：输出边长 = ⌊(输入边长 + 2×填充 − 卷积核大小) ÷ 步幅⌋ + 1；卷积层参数 = 卷积核个数 ×（输入通道 × 大小 × 大小 + 1）；全连接层参数 = 输出个数 ×（输入个数 + 1）。编者核对：“实验 5-2 的 CNN”每层形状和参数与 PyTorch 打印结果一致（共 268 650 个参数）。</div>
+<script src="../common/sim.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var input = [3, 32, 32], layers = [];
+  var PRE = {
+    lab52: { in: [3, 32, 32], L: [["conv", 16, 3, 1, 1], ["pool", 2], ["conv", 32, 3, 1, 1], ["pool", 2], ["flat"], ["fc", 128], ["fc", 10]] },
+    lenet: { in: [1, 28, 28], L: [["conv", 6, 5, 1, 2], ["pool", 2], ["conv", 16, 5, 1, 0], ["pool", 2], ["flat"], ["fc", 120], ["fc", 84], ["fc", 10]] },
+    vgg: { in: [3, 32, 32], L: [["conv", 32, 3, 1, 1], ["conv", 32, 3, 1, 1], ["pool", 2], ["conv", 64, 3, 1, 1], ["conv", 64, 3, 1, 1], ["pool", 2], ["flat"], ["fc", 10]] },
+    bad: { in: [3, 32, 32], L: [["conv", 16, 3, 1, 1], ["pool", 2], ["conv", 32, 3, 1, 1], ["pool", 2], ["flat"], ["fc", 128, 1024]] },
+    clear: { in: null, L: [] }
+  };
+  function fmt(n) { return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " "); }
+  function name(l) {
+    if (l[0] === "conv") return "Conv2d(" + "?" + ", " + l[1] + ", 大小 " + l[2] + ", 步幅 " + l[3] + ", 填充 " + l[4] + ")";
+    if (l[0] === "pool") return "MaxPool2d(" + l[1] + ")";
+    if (l[0] === "flat") return "Flatten()";
+    return "Linear(?, " + l[1] + ")";
+  }
+  function render() {
+    var shape = input.slice(), total = 0, bad = false;
+    var h = "<tr><th>#</th><th>层</th><th>输出形状</th><th>怎么算</th><th>参数</th><th></th></tr>";
+    h += '<tr><td>0</td><td class="l">输入</td><td class="shape">' + shape.join("×") + "</td><td>" + fmt(shape.reduce(function (a, b) { return a * b; })) + " 个数</td><td>0</td><td></td></tr>";
+    var boxes = [shape.slice()];
+    layers.forEach(function (l, i) {
+      var how = "", params = 0, err = "", nm = name(l), out;
+      if (bad) { err = "前面的层已经出错"; }
+      else if (l[0] === "conv") {
+        if (shape.length !== 3) err = "卷积层要接在“通道×高×宽”的特征图后面，不能放在 Flatten 之后";
+        else {
+          var o = Math.floor((shape[1] + 2 * l[4] - l[2]) / l[3]) + 1;
+          nm = nm.replace("?", shape[0]);
+          how = "⌊(" + shape[1] + "+2×" + l[4] + "−" + l[2] + ")÷" + l[3] + "⌋+1 = " + o;
+          params = l[1] * (shape[0] * l[2] * l[2] + 1);
+          if (o <= 0) err = "输出边长 ≤ 0，图已经太小了";
+          out = [l[1], o, o];
+          how += "；参数 " + l[1] + "×(" + shape[0] + "×" + l[2] + "×" + l[2] + "+1)";
+        }
+      } else if (l[0] === "pool") {
+        if (shape.length !== 3) err = "池化层要接在特征图后面";
+        else {
+          var o2 = Math.floor(shape[1] / l[1]);
+          how = "⌊" + shape[1] + "÷" + l[1] + "⌋ = " + o2 + "，通道数不变";
+          if (o2 <= 0) err = "输出边长 ≤ 0";
+          out = [shape[0], o2, o2];
+        }
+      } else if (l[0] === "flat") {
+        if (shape.length !== 3) err = "已经是一串数了，不需要再摊平";
+        else { out = [shape[0] * shape[1] * shape[2]]; how = shape.join("×") + " = " + out[0]; }
+      } else {
+        if (shape.length !== 1) err = "全连接层前面要先 Flatten";
+        else {
+          var nin = l[2] || shape[0];
+          nm = "Linear(" + nin + ", " + l[1] + ")";
+          if (l[2] && l[2] !== shape[0]) err = "这一层写的输入个数是 " + l[2] + "，可上一层实际输出 " + shape[0] + " 个数，PyTorch 会报 “shapes cannot be multiplied”";
+          params = l[1] * (nin + 1);
+          how = "参数 " + l[1] + "×(" + nin + "+1)";
+          out = [l[1]];
+        }
+      }
+      if (err) { bad = true; }
+      else { shape = out; total += params; boxes.push(shape.slice()); }
+      h += "<tr" + (err ? ' class="err"' : "") + "><td>" + (i + 1) + '</td><td class="l mono">' + nm + '</td><td class="shape">' + (err ? "×" : shape.join("×")) + '</td><td class="l">' + (err || how) + "</td><td>" + (err ? "" : fmt(params)) + '</td><td><button class="x" data-del="' + i + '" title="删掉这一层">✕</button></td></tr>';
+    });
+    h += '<tr><td colspan="4" style="text-align:right">参数合计</td><td><b>' + fmt(total) + "</b></td><td></td></tr>";
+    $("tab").innerHTML = h;
+    var mx = Math.max.apply(null, boxes.map(function (b) { return b.length === 3 ? b[1] : 0; }).concat([1]));
+    $("boxes").innerHTML = boxes.map(function (b) {
+      if (b.length === 3) { var s = 14 + 66 * b[1] / mx, w = Math.max(10, Math.min(60, 6 + Math.log2(b[0] + 1) * 7)); return '<div style="height:' + s + "px;width:" + w + 'px" title="' + b.join("×") + '">' + b[0] + "</div>"; }
+      return '<div style="height:' + Math.min(70, 10 + Math.log2(b[0] + 1) * 5) + 'px;width:12px" title="' + b[0] + '"></div>';
+    }).join("");
+    $("msg").innerHTML = bad ? '<b class="bad">有一层尺寸对不上</b>，看标红的那一行。' : layers.length ? '尺寸全部正确。上面的方块：高度表示特征图边长，宽度表示通道数，可以看到“越往后越小、越来越厚”。' : "从上面选一种层，点“加一层”。";
+    document.querySelectorAll("[data-del]").forEach(function (b) { b.onclick = function () { layers.splice(+b.dataset.del, 1); render(); }; });
+    document.querySelectorAll("[data-in]").forEach(function (b) { b.classList.toggle("on", b.dataset.in === input.join(",")); });
+  }
+  document.querySelectorAll("[data-in]").forEach(function (b) { b.onclick = function () { input = b.dataset.in.split(",").map(Number); render(); }; });
+  document.querySelectorAll("[data-pre]").forEach(function (b) { b.onclick = function () { var p = PRE[b.dataset.pre]; if (p.in) input = p.in.slice(); layers = p.L.map(function (l) { return l.slice(); }); render(); }; });
+  $("kind").onchange = function () { var k = $("kind").value; $("convArgs").hidden = k !== "conv"; $("poolArgs").hidden = k !== "pool"; $("fcArgs").hidden = k !== "fc"; };
+  $("add").onclick = function () {
+    var k = $("kind").value;
+    if (k === "conv") layers.push(["conv", Math.max(1, +$("oc").value || 1), +$("k").value, +$("s").value, +$("p").value]);
+    else if (k === "pool") layers.push(["pool", +$("pk").value]);
+    else if (k === "flat") layers.push(["flat"]);
+    else layers.push(["fc", Math.max(1, +$("fo").value || 1)]);
+    render();
+  };
+  layers = PRE.lab52.L.map(function (l) { return l.slice(); });
+  render();
+})();
+</script>
+</body>
+</html>
