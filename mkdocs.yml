@@ -49,7 +49,17 @@ nav:
   - "第 10 章 深度强化学习、伦理与综合项目": chapters/10-drl-project/index.md
   - 交互动画:
     - sims/index.md
-    - "示例动画：点击计数器": sims/example-counter/index.md
+    - "神经元与激活函数": sims/neuron-activation/index.md
+    - "网络游乐场": sims/nn-playground/index.md
+    - "梯度下降下山": sims/gradient-descent/index.md
+    - "误差往回传": sims/backprop-flow/index.md
+    - "训练曲线诊断器": sims/curve-doctor/index.md
+    - "卷积计算器": sims/conv-calculator/index.md
+    - "CNN 尺寸与参数计算器": sims/feature-map-size/index.md
+    - "RNN 与 LSTM 逐步展开": sims/rnn-lstm/index.md
+    - "自注意力热力图": sims/self-attention/index.md
+    - "冻结几层好": sims/freeze-layers/index.md
+    - "词向量与余弦相似度": sims/word-vectors/index.md
   - 学习图谱: learning-graph/index.md
   - 常见问题: faq/index.md
   - "期末模拟卷": mock-exam.md

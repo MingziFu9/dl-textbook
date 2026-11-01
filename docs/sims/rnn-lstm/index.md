@@ -1,13 +1,13 @@
 ---
 title: RNN 与 LSTM 逐步展开
-description: 一个词一个词地读短信，比较简单 RNN 的隐藏状态和 LSTM 的记忆细胞怎样更新，看遗忘门、输入门怎样让 LSTM 记住开头的词（第 11 章）
+description: 一个词一个词地读短信，比较简单 RNN 的隐藏状态和 LSTM 的记忆细胞怎样更新，看遗忘门、输入门怎样让 LSTM 记住开头的词（第 6 章）
 ---
 
 # RNN 与 LSTM 逐步展开
 
 <iframe class="sim-frame" src="main.html" height="720" loading="lazy" title="RNN 与 LSTM 逐步展开"></iframe>
 
-[全屏打开](main.html){ target=_blank } · 对应教材：[11.5 循环神经网络](../../chapters/11-cnn-rnn/index.md#115)、[11.6 LSTM 与 GRU](../../chapters/11-cnn-rnn/index.md#116)
+[全屏打开](main.html){ target=_blank } · 对应教材：[6.3 LSTM：用三道门管住记忆](../../chapters/06-sequence/index.md#63)
 
 ## 教学说明
 
