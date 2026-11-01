@@ -46,7 +46,7 @@
 | [第 10 章](chapters/10-drl-project/index.md) | 0.7 万 | 2 | 20（16） | 14 | 11 | 0 |
 | **合计** | **6.8 万** | **27** | **200（160）** | **125** | **102** | **11** |
 
-正文字数只统计汉字，不含代码和课后练习；单选、多选和判断题可以在网页上直接作答。配套学习资源：[交互动画](sims/index.md) 11 个 · [学习图谱](learning-graph/index.md) 125 个概念 · [常见问题](faq/index.md) 2 问 · [术语表](appendix/glossary.md) 125 条。
+正文字数只统计汉字，不含代码和课后练习；单选、多选和判断题可以在网页上直接作答。配套学习资源：[交互动画](sims/index.md) 11 个 · [学习图谱](learning-graph/index.md) 125 个概念 · [常见问题](faq/index.md) 24 问 · [术语表](appendix/glossary.md) 125 条。
 
 <!-- stats:end -->
 
