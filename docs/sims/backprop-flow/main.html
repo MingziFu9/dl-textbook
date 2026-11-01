@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>误差往回传</title>
+<link rel="stylesheet" href="../common/sim.css">
+<style>
+svg#g { width:100%; height:auto; border:1px solid var(--line); border-radius:6px; background:#fff; }
+.node rect { fill:#fff; stroke:var(--accent); stroke-width:2; rx:8; }
+.node.on rect { fill:var(--soft); }
+.fwd { fill:#1e88e5; font-size:13px; font-weight:600; }
+.bwd { fill:#e53935; font-size:13px; font-weight:600; }
+.lbl { font-size:13px; fill:var(--ink); }
+.ctl { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px 12px; }
+@media (max-width:620px) { .ctl { grid-template-columns:repeat(2, 1fr); } }
+.ctl label { font-size:12.5px; display:flex; gap:6px; align-items:center; }
+.ctl input { flex:1; min-width:0; }
+</style>
+</head>
+<body>
+<h1>误差往回传：一个神经元的计算图</h1>
+<div class="sub">蓝色数字是前向算出的值，红色数字是反向算出的梯度（损失对它的导数）。先按“① 前向”，再按“② 反向”，最后按“③ 更新一步”，反复几次看损失怎样变小。</div>
+<div class="ctl">
+  <label>输入 x <input type="range" id="x" min="-3" max="3" step="0.5" value="2"><b id="xv"></b></label>
+  <label>权重 w <input type="range" id="w" min="-2" max="2" step="0.1" value="0.5"><b id="wv"></b></label>
+  <label>偏置 b <input type="range" id="b" min="-2" max="2" step="0.1" value="0"><b id="bv"></b></label>
+  <label>目标 y <input type="range" id="y" min="-3" max="3" step="0.5" value="3"><b id="yv"></b></label>
+</div>
+<div class="row"><span>激活函数</span><select id="act"><option value="none" selected>不用（a = z）</option><option value="sigmoid">Sigmoid</option><option value="relu">ReLU</option></select>
+  <span>学习率</span><select id="lr"><option>0.01</option><option selected>0.05</option><option>0.1</option><option>0.3</option></select>
+  <button id="fw" class="main">① 前向</button><button id="bw">② 反向</button><button id="up">③ 更新一步</button><button id="auto">自动走 10 步</button></div>
+<svg id="g" viewBox="0 0 720 250" aria-label="计算图"></svg>
+<div class="msg" id="msg"></div>
+<table class="t" id="hist"><thead><tr><th>步</th><th>w</th><th>b</th><th>损失 L</th><th>dL/dw</th><th>dL/db</th></tr></thead><tbody></tbody></table>
+<div class="note">计算图：z = w·x + b，a = f(z)，L = (a − y)²。反向时从 L 出发：dL/da = 2(a − y)；经过激活函数要乘它的“放大倍数” f′(z)（不用激活时为 1，Sigmoid 最大只有 0.25，ReLU 为 0 或 1）；再往回，dL/dw = dL/dz × x，dL/db = dL/dz × 1。默认数值与 3.2.2 节的算一算相同：dL/dw = −8，dL/db = −4。</div>
+<script src="../common/sim.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var st = { stage: 0, step: 0 }, v = {};
+  function f(z) { var a = $("act").value; return a === "sigmoid" ? 1 / (1 + Math.exp(-z)) : a === "relu" ? Math.max(0, z) : z; }
+  function df(z, a) { var t = $("act").value; return t === "sigmoid" ? a * (1 - a) : t === "relu" ? (z > 0 ? 1 : 0) : 1; }
+  function r(n) { return Math.abs(n) < 1e-9 ? "0" : (+n.toFixed(4)).toString(); }
+  function read() { ["x", "w", "b", "y"].forEach(function (k) { v[k] = +$(k).value; $(k + "v").textContent = v[k]; }); }
+  function compute() {
+    v.z = v.w * v.x + v.b; v.a = f(v.z); v.L = Math.pow(v.a - v.y, 2);
+    v.dA = 2 * (v.a - v.y); v.k = df(v.z, v.a); v.dZ = v.dA * v.k; v.dW = v.dZ * v.x; v.dB = v.dZ;
+  }
+  function box(x, y, w, label, fv, bv, on) {
+    return '<g class="node' + (on ? " on" : "") + '"><rect x="' + x + '" y="' + y + '" width="' + w + '" height="44" rx="8"></rect>' +
+      '<text class="lbl" x="' + (x + w / 2) + '" y="' + (y + 18) + '" text-anchor="middle">' + label + "</text>" +
+      (fv !== null ? '<text class="fwd" x="' + (x + w / 2) + '" y="' + (y + 36) + '" text-anchor="middle">' + fv + "</text>" : "") +
+      (bv !== null ? '<text class="bwd" x="' + (x + w / 2) + '" y="' + (y + 62) + '" text-anchor="middle">' + bv + "</text>" : "") + "</g>";
+  }
+  function arrow(x1, y1, x2, y2) { return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#90a4ae" stroke-width="2" marker-end="url(#ar)"/>'; }
+  function draw() {
+    var F = st.stage >= 1, B = st.stage >= 2, s = '<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="#90a4ae"/></marker></defs>';
+    s += arrow(110, 42, 230, 110) + arrow(110, 122, 230, 122) + arrow(110, 202, 230, 134) + arrow(350, 122, 420, 122) + arrow(530, 122, 590, 122);
+    s += box(10, 20, 100, "输入 x", "x = " + v.x, null, false);
+    s += box(10, 100, 100, "权重 w", "w = " + r(v.w), B ? "dL/dw = " + r(v.dW) : null, B);
+    s += box(10, 180, 100, "偏置 b", "b = " + r(v.b), B ? "dL/db = " + r(v.dB) : null, B);
+    s += box(230, 100, 120, "z = w·x + b", F ? "z = " + r(v.z) : null, B ? "dL/dz = " + r(v.dZ) : null, B);
+    s += box(420, 100, 110, $("act").value === "none" ? "a = z" : "a = " + $("act").selectedOptions[0].text + "(z)", F ? "a = " + r(v.a) : null, B ? "dL/da = " + r(v.dA) : null, B);
+    s += box(590, 100, 120, "L = (a − y)²", F ? "L = " + r(v.L) : null, B ? "dL/dL = 1" : null, B);
+    if (B) s += '<text class="bwd" x="475" y="200" text-anchor="middle">× f′(z) = ' + r(v.k) + '</text><text class="bwd" x="290" y="200" text-anchor="middle">× x = ' + v.x + " → dL/dw</text>";
+    $("g").innerHTML = s;
+  }
+  function msg() {
+    var m = "";
+    if (st.stage === 0) m = "按“① 前向”，从左往右算出 z、a 和损失 L。";
+    else if (st.stage === 1) m = "前向算完了，损失 L = " + r(v.L) + "。按“② 反向”，从 L 出发把梯度一步步往回传。";
+    else {
+      m = "反向算完了：dL/dw = " + r(v.dW) + "，dL/db = " + r(v.dB) + "。梯度为负，说明把它调大能让损失变小；按“③ 更新一步”。";
+      if ($("act").value === "sigmoid") m += " 注意：经过 Sigmoid 时梯度乘了 " + r(v.k) + "，被缩小了。";
+      if ($("act").value === "relu" && v.k === 0) m += ' <span class="bad">z ≤ 0，ReLU 的放大倍数是 0，梯度传不回去，w 和 b 都不会变！</span>';
+    }
+    $("msg").innerHTML = m;
+  }
+  function refresh() { compute(); draw(); msg(); }
+  function reset() { read(); st = { stage: 0, step: 0 }; $("hist").tBodies[0].innerHTML = ""; refresh(); }
+  function update() {
+    if (st.stage < 2) { compute(); st.stage = 2; }
+    var lr = +$("lr").value, row = $("hist").tBodies[0].insertRow();
+    row.innerHTML = "<td>" + st.step + "</td><td>" + r(v.w) + "</td><td>" + r(v.b) + "</td><td>" + r(v.L) + "</td><td>" + r(v.dW) + "</td><td>" + r(v.dB) + "</td>";
+    v.w -= lr * v.dW; v.b -= lr * v.dB; st.step++; st.stage = 1; refresh();
+  }
+  ["x", "w", "b", "y", "act"].forEach(function (k) { $(k).addEventListener("input", reset); });
+  $("fw").onclick = function () { st.stage = Math.max(st.stage, 1); refresh(); };
+  $("bw").onclick = function () { st.stage = 2; refresh(); };
+  $("up").onclick = update;
+  $("auto").onclick = function () { for (var i = 0; i < 10; i++) update(); };
+  reset();
+})();
+</script>
+</body>
+</html>
