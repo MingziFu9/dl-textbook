@@ -1,0 +1,100 @@
+# 第 6 章教案底稿：线上自学理论 + 线上实验，线下 1 学时集中讲重点难点。改好后运行 python tools/make_lesson_plan.py build 6
+chapter: 6
+online: 5
+offline: 1
+methods:
+- 讲授法
+- 案例教学法
+- 演示法
+- 线上自主学习
+- 实验教学法
+objectives:
+  knowledge:
+  - 说出序列数据、循环神经网络、隐藏状态、LSTM、门、注意力、自注意力、多头注意力、位置编码、Transformer 的含义
+  - 解释简单 RNN 为什么记不住长序列前面的信息，LSTM 的三道门各起什么作用
+  skill:
+  - 计算一个小例子的注意力权重，并从注意力热力图中读出每个词在关注谁
+  - 用 PyTorch 的 `nn.LSTM`、`nn.MultiheadAttention`、`nn.TransformerEncoder` 搭建序列模型并完成训练
+  - 根据任务特点选择 CNN、RNN 或 Transformer
+  quality:
+  - 理解技术演进“发现问题—解决问题”的规律
+  - 客观看待模型结果：注意力大不等于“理由”
+key_points:
+- 序列数据与循环神经网络
+- RNN 的困境：长句子前面的信息忘了
+- LSTM：用三道门管住记忆
+- 注意力：读到这里时该看哪里
+difficulties:
+- point: 简单 RNN 为什么记不长
+  solution: 用 RNN 与 LSTM 逐步展开动画，比较开头词对最终判断的影响
+- point: 自注意力的计算
+  solution: 带学生手算三个词的自注意力，再用自注意力热力图看“它”关注哪个词
+process:
+- phase: 课前（线上）
+  steps:
+  - name: 线上自学
+    minutes: 95
+    content: 学习网页教材第 6 章：6.1 序列数据与循环神经网络；6.2 RNN 的困境；6.3 LSTM；6.4 注意力；6.5 Transformer；6.6 CNN、RNN、Transformer 怎么选；6.7 示范例题；6.8 前沿视窗；操作本章交互动画，完成每节的“算一算”
+    teacher: 在学习平台发布学习任务单和预习问题，查看学习进度
+    student: 阅读教材、观看课件、操作动画，在讨论区提出疑问
+    intent: 理论内容以线上自学为主，线下课集中解决重点难点
+  - name: 线上自测
+    minutes: 20
+    content: 完成课后练习中的单选、多选、判断题（网页在线作答）
+    teacher: 统计错误率高的题目，作为线下课讲评重点
+    student: 在线作答，查看解析，记下不懂的题
+    intent: 暴露问题，让线下课有的放矢
+- phase: 课中（线下面授 / 直播）
+  steps:
+  - name: 情景导入
+    minutes: 5
+    content: 情景导入：用手机打字时，输入法会猜你下一个字要打什么。打“今天天气”，它会提示“很好”“怎么样”；打“我想吃火”，它会提示“锅”。……
+    teacher: 回顾情景导入，点出本章要解决的问题
+    student: 思考并回答问题，说出自己的经验
+    intent: 联系工作和生活场景，激发学习兴趣
+  - name: 重点讲解
+    minutes: 15
+    content: 本章重点：RNN 的循环结构、LSTM 的门、自注意力、Transformer 的结构
+    teacher: 结合线上自测的错题，讲清重点概念，带学生做一遍示范例题
+    student: 听讲、跟着计算、提问
+    intent: 集中突破重点
+  - name: 难点突破与演示
+    minutes: 10
+    content: 简单 RNN 为什么记不长；自注意力的计算。演示：RNN 与 LSTM 逐步展开；自注意力热力图
+    teacher: 按“教学难点”中的方法演示和讲解
+    student: 观察演示、动手操作、回答提问
+    intent: 化抽象为直观，突破难点
+  - name: 课堂练习
+    minutes: 10
+    content: 从课后练习中选 3～5 道题当堂作答并讲评
+    teacher: 组织作答，讲评错误率高的题
+    student: 作答并说出理由
+    intent: 即时检验学习效果
+  - name: 小结
+    minutes: 5
+    content: 用本章知识导图回顾要点，布置实验和作业，预告下一章
+    teacher: 带领学生梳理知识导图
+    student: 复述本章要点
+    intent: 形成知识结构
+- phase: 课后（线上）
+  steps:
+  - name: 线上实验
+    minutes: 90
+    content: 实验 6-1 ★ 用 LSTM 预测下一天的气温、实验 6-2 ★ 用现成的多头注意力层，画一句话的注意力热力图、实验 6-3 ☆ 同一任务换成 Transformer 编码器，对比效果和速度（★ 必做，☆ 选做）
+    teacher: 发布实验任务，在讨论区答疑，收集常见错误
+    student: 按教材步骤完成实验，填写记录表，提交实验报告
+    intent: 动手验证本章原理，形成技能
+  - name: 课后巩固
+    minutes: 20
+    content: 完成简答题和实操题，错题点“回看”复习对应小节
+    teacher: 批改作业和实验报告
+    student: 完成作业
+    intent: 巩固知识
+homework:
+- 简答题：用“重点笔记本”的比喻，说明 LSTM 为什么比简单 RNN 记得更久。
+- 简答题：说出 Transformer 结构图中“位置编码”“多头注意力”“残差连接与归一化”各自的作用。
+- 实操题：两个词 A = (1, 0)、B = (0, 1)，手算自注意力（打分时除以 √2）：写出注意力权重矩阵和 A 的输出向量，并用实验 6-2 第 1 部分的代码核对。
+- 实操题：把 `common06.py` 中的 `WINDOW = 30` 改成 7（只看前 7 天），重新运行实验 6-1，LSTM 的误差有什么变化？这说明了什么？
+- 实验报告：实验 6-1、实验 6-2、实验 6-3
+assessment: 课堂练习正确率、课后作业和实验报告计入平时成绩
+reflection: ''
