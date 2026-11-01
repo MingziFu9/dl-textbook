@@ -1,168 +1,209 @@
 ---
 title: 附录 A PyTorch 速查
-description: 本书实验中常用的 Python 基础语法、文件读写、正则表达式、NumPy 与 pandas 操作速查
+description: 本书实验中用到的 PyTorch 张量操作、网络层、损失函数、优化器、训练五步模板、保存与读取模型，以及常见报错速查
 ---
 
 # 附录 A PyTorch 速查
 
-本附录汇总了本书实验中最常用的 Python 知识点，供同学们在做实验时随时查阅。它不是完整的 Python 教程，如果你还没有学过 Python，建议先学习一门 Python 程序设计入门课程。
+本附录汇总了本书实验中用到的 PyTorch 写法，供做实验时随时查阅。它不是完整的 PyTorch 教程，只收本书真正用过的内容；每一项后面注明首次出现的章节，想看详细解释就回到那一节。
 
-## A.1 字符串
+## A.1 张量
 
-处理文本，最常打交道的就是字符串。
-
-```python
-s = "  自然语言处理 NLP  "
-s.strip()                  # 去掉两端空白 -> "自然语言处理 NLP"
-s.lower(), s.upper()       # 英文转小写 / 大写
-len("自然语言")             # 长度（字符数）-> 4
-"语言" in s                # 是否包含 -> True
-s.replace("NLP", "技术")    # 替换
-"a,b,c".split(",")         # 按分隔符切分 -> ['a', 'b', 'c']
-"/".join(["我", "爱", "NLP"])  # 用分隔符连接 -> "我/爱/NLP"
-"自然语言处理"[0:2]          # 切片：取前两个字 -> "自然"
-"自然语言处理"[-2:]          # 取最后两个字 -> "处理"
-s.startswith("  自"), s.endswith("  ")
-name, score = "小王", 92.5
-f"{name}的成绩是{score:.1f}分"   # f-string 格式化 -> "小王的成绩是92.5分"
-f"{name:<6}|{score:>8.2f}"      # 左对齐占 6 位，右对齐占 8 位保留 2 位小数
-```
-
-## A.2 列表、字典、集合
+张量就是“多维数组”，可以看作 NumPy 数组的 PyTorch 版本，能自动求导，也能放到显卡上算（[2.3 节](../chapters/02-training/index.md#23)）。
 
 ```python
-words = ["我", "爱", "自然", "语言", "处理"]
-words.append("！")              # 末尾添加
-words[1], words[-1]            # 按位置取元素
-[w for w in words if len(w) > 1]   # 列表推导式：筛选 -> ['自然', '语言', '处理']
-sorted(words, key=len, reverse=True)   # 按长度从长到短排序
+import torch
 
-freq = {"好吃": 3, "难吃": 1}    # 字典：键 -> 值
-freq["好吃"]                    # 取值 -> 3
-freq.get("一般", 0)             # 取不到时返回默认值 0
-freq["一般"] = 2                # 添加或修改
-for word, count in freq.items():   # 遍历键和值
-    print(word, count)
+a = torch.tensor([1.0, 2.0, 3.0])        # 从列表创建
+b = torch.zeros(2, 3)                    # 2 行 3 列的全 0
+c = torch.ones(2, 3)                     # 全 1
+r = torch.randn(4, 3)                    # 标准正态分布的随机数
+torch.arange(0, 10, 2)                   # 0, 2, 4, 6, 8
+torch.linspace(0, 1, 5)                  # 0 到 1 等分 5 个数
 
-a, b = {"我", "爱", "你"}, {"你", "爱", "他"}   # 集合：自动去重
-a & b, a | b, a - b             # 交集、并集、差集
+r.shape                                  # 形状 -> torch.Size([4, 3])
+r.dtype                                  # 数据类型 -> torch.float32
+r[0], r[:, 1], r[1:3]                    # 取第 0 行、第 1 列、第 1~2 行
+r.reshape(3, 4), r.view(12)              # 改形状（元素个数不变）
+r.unsqueeze(0).shape                     # 加一个维度 -> [1, 4, 3]
+r.flatten(1)                             # 从第 1 维开始摊平
 
-from collections import Counter
-Counter(["好", "好", "差"]).most_common(1)   # 计数 -> [('好', 2)]
+a + 1, a * 2, a ** 2                     # 逐个元素运算
+a @ a                                    # 向量点积；矩阵乘法也用 @
+r.sum(), r.mean(), r.max()               # 求和、平均、最大值
+r.argmax(dim=1)                          # 每行最大值的位置（分类时取预测类别）
+torch.cat([b, c], dim=0)                 # 按行拼接 -> 4 行 3 列
+torch.stack([a, a])                      # 叠成新的一维 -> 2 行 3 列
+
+a.numpy()                                # 张量 -> NumPy 数组
+torch.from_numpy(arr)                    # NumPy 数组 -> 张量
+loss.item()                              # 只有一个数的张量 -> Python 数字
 ```
 
-## A.3 函数、条件与循环
+## A.2 自动求导
+
+给张量加上 `requires_grad=True`，PyTorch 会记下计算图，调用 `backward()` 后自动算出梯度（[3.3 节](../chapters/03-backprop/index.md#33)）。
 
 ```python
-def clean(text, lower=True):
-    """函数的说明文字写在这里"""
-    text = text.strip()
-    if lower:
-        text = text.lower()
-    return text
+w = torch.tensor(0.5, requires_grad=True)
+b = torch.tensor(0.0, requires_grad=True)
+x, y = 2.0, 3.0
+loss = (w * x + b - y) ** 2              # 前向：算损失
+loss.backward()                          # 反向：自动求梯度
+print(w.grad, b.grad)                    # tensor(-8.) tensor(-4.)，与 3.2.2 节手算相同
 
-for i, w in enumerate(["a", "b"]):   # 同时得到序号和元素
-    print(i, w)
-for x, y in zip([1, 2], ["一", "二"]):   # 同时遍历两个列表
-    print(x, y)
-
-try:                                 # 捕获异常
-    n = int("abc")
-except ValueError as e:
-    print("转换失败：", e)
+with torch.no_grad():                    # 只算、不记录计算图（更新参数、评估时用）
+    w -= 0.05 * w.grad
+w.grad.zero_()                           # 梯度会累加，下次反向前要清零
 ```
 
-## A.4 文件读写
+## A.3 搭网络
 
-**中文文件一定要指定 `encoding="utf-8"`**，否则在 Windows 上很容易出现乱码或 `UnicodeDecodeError`。
+最简单的写法是 `nn.Sequential`，把各层按顺序排好（[2.4 节](../chapters/02-training/index.md#24)）；需要自己安排数据怎样流动时，就继承 `nn.Module`，在 `forward` 里写清楚（[5.5 节](../chapters/05-cnn/index.md#55)）。
 
 ```python
-text = open("article.txt", encoding="utf-8").read()          # 读取全部内容
-lines = open("words.txt", encoding="utf-8").read().splitlines()   # 按行读成列表
+from torch import nn
 
-with open("out.txt", "w", encoding="utf-8") as f:            # 写文件（with 会自动关闭文件）
-    f.write("第一行\n")
+# 写法一：按顺序堆叠
+model = nn.Sequential(
+    nn.Flatten(),                 # 把 28×28 的图摊平成 784 个数
+    nn.Linear(784, 128), nn.ReLU(),
+    nn.Linear(128, 10),           # 10 类，输出 10 个分数（不加 Softmax，损失函数里已经包含）
+)
 
-import json
-data = json.load(open("data.json", encoding="utf-8"))        # 读 JSON
-json.dump(data, open("out.json", "w", encoding="utf-8"),
-          ensure_ascii=False, indent=2)                      # 写 JSON，中文不转义
-json.loads('{"a": 1}'), json.dumps({"名字": "小王"}, ensure_ascii=False)   # 字符串与对象互转
+# 写法二：继承 nn.Module
+class SmallCNN(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 16, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(16, 32, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
+        )
+        self.classifier = nn.Sequential(nn.Flatten(), nn.Linear(32 * 8 * 8, 128), nn.ReLU(),
+                                        nn.Linear(128, 10))
 
-import os
-os.path.exists("a.txt")          # 文件是否存在
-os.environ.get("DEEPSEEK_API_KEY")   # 读取环境变量
+    def forward(self, x):
+        return self.classifier(self.features(x))
+
+model = SmallCNN()
+print(model)                                                   # 看结构
+print(sum(p.numel() for p in model.parameters()))              # 数参数个数
+print(model(torch.randn(1, 3, 32, 32)).shape)                  # 喂一张假图片看输出形状
 ```
 
-## A.5 正则表达式
+本书用到的层：
 
-正则表达式用于按“模式”查找和替换文本，第 2、7、12 章大量使用。
+| 层 | 作用 | 常用写法 | 章节 |
+|---|---|---|---|
+| `nn.Linear` | 全连接层 | `nn.Linear(输入个数, 输出个数)` | 第 1 章 |
+| `nn.ReLU`、`nn.Sigmoid`、`nn.Tanh`、`nn.LeakyReLU` | 激活函数 | `nn.ReLU()` | 第 1、3 章 |
+| `nn.Flatten` | 摊平 | `nn.Flatten()` | 第 2 章 |
+| `nn.Dropout` | 训练时随机让一部分神经元休息 | `nn.Dropout(0.5)` | 第 4 章 |
+| `nn.BatchNorm1d`、`nn.BatchNorm2d` | 批归一化 | `nn.BatchNorm2d(通道数)` | 第 3、5 章 |
+| `nn.Conv2d` | 卷积层 | `nn.Conv2d(输入通道, 卷积核个数, kernel_size=3, stride=1, padding=1)` | 第 5 章 |
+| `nn.MaxPool2d` | 最大池化 | `nn.MaxPool2d(2)` | 第 5 章 |
+| `nn.AdaptiveAvgPool2d` | 全局平均池化 | `nn.AdaptiveAvgPool2d(1)` | 第 7 章 |
+| `nn.RNN`、`nn.LSTM` | 循环层 | `nn.LSTM(输入维度, 隐藏维度, batch_first=True)` | 第 6 章 |
+| `nn.MultiheadAttention` | 多头注意力 | `nn.MultiheadAttention(维度, 头数, batch_first=True)` | 第 6 章 |
+| `nn.TransformerEncoderLayer`、`nn.TransformerEncoder` | Transformer 编码器 | `nn.TransformerEncoder(层, num_layers=2)` | 第 6 章 |
+| `nn.Embedding` | 词嵌入：把编号变成向量 | `nn.Embedding(词表大小, 向量维度, padding_idx=0)` | 第 6、8 章 |
 
-| 写法 | 含义 | 示例 |
+## A.4 损失函数与优化器
+
+| 任务 | 网络最后一层 | 损失函数 | 章节 |
+|---|---|---|---|
+| 预测一个数（回归） | `nn.Linear(…, 1)` | `nn.MSELoss()` | 第 2 章 |
+| 多选一（多分类） | `nn.Linear(…, 类别数)`，不加 Softmax | `nn.CrossEntropyLoss()`，标签是类别编号 | 第 2 章 |
+| 是或否（二分类） | `nn.Linear(…, 1)`，不加 Sigmoid | `nn.BCEWithLogitsLoss()`，标签是 0.0 或 1.0 | 第 9 章 |
+
+```python
+optimizer = torch.optim.SGD(model.parameters(), lr=0.1)                 # 小批量梯度下降
+optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9)  # 带动量
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001)              # Adam，本书默认
+optimizer = torch.optim.AdamW(model.parameters(), lr=2e-5, weight_decay=0.01)   # 微调预训练模型
+torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)       # 加权重衰减
+```
+
+## A.5 数据加载
+
+```python
+from torch.utils.data import DataLoader, TensorDataset
+
+train_loader = DataLoader(TensorDataset(x_train, y_train), batch_size=64, shuffle=True)
+for xb, yb in train_loader:        # 每次取出一批
+    print(xb.shape, yb.shape)       # 例如 torch.Size([64, 1, 28, 28]) torch.Size([64])
+    break
+
+idx = torch.randperm(len(x))        # 打乱顺序，用来自己划分训练集和验证集
+x_val, x_train = x[idx[:1000]], x[idx[1000:]]
+```
+
+图像数据增强（[4.4.1 节](../chapters/04-generalization/index.md#441)、[7.2 节](../chapters/07-image-transfer/index.md#72)）：
+
+```python
+from torchvision import transforms
+augment = transforms.Compose([
+    transforms.RandomResizedCrop(112, scale=(0.6, 1.0)),   # 随机裁剪一块再缩放
+    transforms.RandomHorizontalFlip(),                     # 随机左右翻转
+])
+xb = augment(xb)                                           # 只在训练时用，验证和测试不用
+```
+
+## A.6 训练五步模板
+
+本书所有训练程序都是这个结构（[2.4 节](../chapters/02-training/index.md#24)）：
+
+```python
+for epoch in range(1, 11):              # 训练 10 轮
+    model.train()                       # 训练模式（Dropout、批归一化生效）
+    for xb, yb in train_loader:
+        out = model(xb)                 # ① 前向
+        loss = loss_fn(out, yb)         # ② 算损失
+        optimizer.zero_grad()           # ③ 清梯度
+        loss.backward()                 # ④ 反向
+        optimizer.step()                # ⑤ 更新
+
+    model.eval()                        # 评估模式
+    with torch.no_grad():               # 评估时不需要梯度
+        pred = model(x_val).argmax(1)
+        acc = (pred == y_val).float().mean().item()
+    print(f"第 {epoch} 轮，验证准确率 {acc:.4f}")
+```
+
+## A.7 保存、读取与迁移学习
+
+```python
+torch.save(model.state_dict(), "my_model.pt")      # 只保存参数（推荐）
+
+model = SmallCNN()                                 # 先搭一个结构相同的网络
+model.load_state_dict(torch.load("my_model.pt", weights_only=True))
+model.eval()                                       # 读回后先切到评估模式再预测
+```
+
+`weights_only=True` 表示只读取参数，不执行文件里的任何代码。从网上下载的模型文件尤其要这样读取。
+
+迁移学习（[7.3 节](../chapters/07-image-transfer/index.md#73)）：
+
+```python
+from torchvision.models import resnet18
+net = resnet18()                                    # 搭 ResNet18 结构
+net.load_state_dict(torch.load("resnet18_a1_0-d63eafa0.pth", weights_only=True))   # 读预训练参数
+for p in net.parameters():
+    p.requires_grad = False                         # 冻结全部层
+net.fc = nn.Linear(net.fc.in_features, 10)          # 换成自己的 10 类输出层（新层默认可训练）
+optimizer = torch.optim.Adam(net.fc.parameters(), lr=0.001)   # 只训练最后一层
+```
+
+## A.8 常见报错速查
+
+| 报错信息（节选） | 常见原因 | 解决办法 |
 |---|---|---|
-| `\d` | 一个数字 | `\d{11}` 匹配 11 位数字 |
-| `\w` | 字母、数字、下划线或汉字 | |
-| `\s` | 空白字符（空格、换行、制表符） | |
-| `.` | 除换行外的任意字符 | |
-| `[abc]` / `[^abc]` | a、b、c 中的一个 / 不是 a、b、c | `[一-龥]` 匹配一个汉字 |
-| `*` `+` `?` | 0 次以上 / 1 次以上 / 0 或 1 次 | |
-| `{m,n}` | 重复 m 到 n 次 | `[一-龥]{2,4}` |
-| `^` `$` | 开头 / 结尾 | |
-| `(…)` / `(?:…)` | 分组 / 不保存的分组 | |
-| `a|b` | a 或 b | `(有限公司|大学)` |
-| `(?<!\d)` `(?!\d)` | 前面不是数字 / 后面不是数字 | 防止从更长的数字中截取 |
-
-```python
-import re
-re.findall(r"1[3-9]\d{9}", "电话13800001234")   # 找出所有匹配 -> ['13800001234']
-re.sub(r"\s+", " ", "a   b\n c")              # 替换 -> "a b c"
-re.split(r"[。！？]", "你好。再见！")            # 按模式切分
-m = re.search(r"(\d+)元", "共计35元")
-m.group(), m.group(1), m.start()              # '35元'、'35'、匹配开始的位置
-```
-
-!!! tip "小技巧"
-    正则表达式前面加 `r`（如 `r"\d+"`），表示“原始字符串”，反斜杠不会被 Python 转义。写不出来的正则，可以描述需求让大模型帮忙写，但一定要用多个正例和反例测试。
-
-## A.6 NumPy
-
-```python
-import numpy as np
-a = np.array([[1, 2], [3, 4]])
-a.shape                      # 形状 -> (2, 2)
-a.T, a @ a                   # 转置、矩阵乘法
-a.sum(), a.mean(axis=0)      # 求和、按列求平均
-np.zeros((2, 3)), np.random.randn(2, 3)   # 全零矩阵、正态分布随机矩阵
-np.argmax([0.1, 0.7, 0.2])   # 最大值的位置 -> 1
-v1, v2 = np.array([1, 0]), np.array([1, 1])
-v1 @ v2 / (np.linalg.norm(v1) * np.linalg.norm(v2))   # 余弦相似度
-```
-
-## A.7 pandas
-
-```python
-import pandas as pd
-df = pd.read_csv("waimai_10k.csv")       # 读 CSV（Excel 用 pd.read_excel）
-df.head(), df.shape, df.columns          # 前 5 行、行列数、列名
-df["label"].value_counts()               # 统计每个值出现的次数
-df[df["label"] == 1]                     # 筛选行
-df["review"].str.len()                   # 每条评论的长度
-df["review"].str.contains("好吃")         # 是否包含某个词
-df["words"] = df["review"].apply(lambda t: t[:10])   # 对每个元素执行函数
-df.drop_duplicates("review").dropna()    # 去重、去掉空值
-df.sample(5, random_state=7)             # 随机抽 5 行
-df.to_csv("out.csv", index=False, encoding="utf-8-sig")   # 保存（utf-8-sig 让 Excel 打开不乱码）
-```
-
-## A.8 常见错误速查
-
-| 错误信息 | 常见原因 |
-|---|---|
-| `ModuleNotFoundError: No module named 'xxx'` | 库没有安装，或者安装到了另一个 Python 环境中 |
-| `FileNotFoundError` | 文件路径不对；数据文件没有放在程序所在的目录 |
-| `UnicodeDecodeError` | 读取文件时没有指定 `encoding="utf-8"`，或文件本身是 GBK 编码 |
-| `IndentationError` | 缩进不一致，混用了空格和 Tab |
-| `KeyError` | 字典中没有这个键；DataFrame 中没有这个列名 |
-| `IndexError: list index out of range` | 下标超出了列表的长度 |
-| `TypeError: ... NoneType` | 某个函数返回了 `None`，又被当作字符串或列表使用 |
-| `ValueError: shapes ... not aligned` | 矩阵乘法时两个矩阵的形状不匹配 |
+| `mat1 and mat2 shapes cannot be multiplied (64x2048 and 1024x128)` | `nn.Linear` 的输入个数和摊平后的实际长度对不上 | 逐层打印形状，把 `Flatten` 后的长度填到 `nn.Linear` 第一个参数（[5.3.2 节](../chapters/05-cnn/index.md#532)） |
+| `Expected input batch_size (…) to match target batch_size (…)` | 输出和标签的个数不同，多半是摊平写错了 | 检查 `model(xb).shape` 和 `yb.shape` 的第一维 |
+| `expected scalar type Long but found Float` | `CrossEntropyLoss` 的标签必须是整数类别编号 | `yb = yb.long()` |
+| `Found dtype Long but expected Float` | `MSELoss`、`BCEWithLogitsLoss` 的标签必须是小数 | `yb = yb.float()` |
+| `Given groups=1, weight of size [16, 3, 3, 3], expected input … to have 3 channels` | 输入图片的通道数和 `Conv2d` 第一个参数不同，或者少了批这一维 | 灰度图用 1 通道；单张图片用 `x.unsqueeze(0)` 加上批维度 |
+| `element 0 of tensors does not require grad` | 参数被冻结或在 `torch.no_grad()` 里算了损失 | 检查 `requires_grad` 和 `no_grad` 的范围 |
+| `Can't call numpy() on Tensor that requires grad` | 要转成 NumPy 的张量还连着计算图 | `x.detach().numpy()` |
+| 损失变成 `nan` | 学习率太大、输入没有标准化 | 学习率缩小 10 倍，检查数据（[2.2.2 节](../chapters/02-training/index.md#222)） |
+| `CUDA out of memory`（用显卡时） | 批太大、图片太大 | 减小 `batch_size` 或图片尺寸 |

@@ -1,8 +1,13 @@
-# 《课程名称》实验环境（写明教材编写时实测通过的版本，Python 3.11）
-# 安装：pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-# 只列学生实验真正用到的库，版本号必须是编者实际运行过的；需要 GPU 的库单独写在下面并注明
-pandas
-numpy
-matplotlib
-scikit-learn
-jupyter
+# 《神经网络与深度学习》实验环境：编者实测通过的版本（Python 3.13，CPU）
+# 安装：先按 labs/README.md 装 PyTorch，再运行
+#   pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+torch==2.15.0          # 第 1～10 章
+torchvision==0.29.2    # 读 MNIST、Fashion-MNIST，图像变换，ResNet18 结构
+numpy==2.5.3
+matplotlib==3.11.2     # 画曲线、特征图、热力图
+pillow                 # 读图片（随 torchvision 自动安装）
+jieba==0.42.1          # 第 8 章中文分词
+gensim==4.4.0          # 第 8 章 Word2Vec 词向量
+gymnasium==1.4.0       # 第 10 章 CartPole 小车平衡
+# 只有实验 8-3（待实测）需要，建议在云算力平台上安装：
+# transformers
