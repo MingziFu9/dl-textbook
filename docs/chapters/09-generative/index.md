@@ -21,7 +21,7 @@ description: 判别模型与生成模型的区别；自编码器的压缩、还�
 !!! info "先修要求"
     学习本章前，你需要掌握：
 
-    - 本书第 2 章：均方误差、交叉熵损失、训练五步（[2.2 损失函数](../02-training/index.md#22)、[2.4 训练五步](../02-training/index.md#24)）；
+    - 本书第 2 章：均方误差、交叉熵损失、训练五步（[2.1 损失函数](../02-training/index.md#21)、[2.4 训练五步](../02-training/index.md#24)）；
     - 本书第 4 章：过拟合、读训练曲线（[4.2 过拟合与欠拟合](../04-generalization/index.md#42)）；
     - 本书第 6 章：Transformer（[6.5](../06-sequence/index.md#65)），9.4 节会提到。
 
