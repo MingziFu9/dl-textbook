@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>网络游乐场</title>
+<link rel="stylesheet" href="../common/sim.css">
+<style>
+canvas { width:100%; height:auto; border:1px solid var(--line); border-radius:6px; background:#fff; touch-action:none; }
+.kpi { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:6px; }
+.kpi div { border:1px solid var(--line); border-radius:6px; padding:4px 8px; font-size:12px; }
+.kpi b { display:block; font-size:16px; }
+#net { width:100%; height:auto; }
+</style>
+</head>
+<body>
+<h1>网络游乐场：搭一个网络，把两类点分开</h1>
+<div class="sub">选一组数据，再决定隐藏层几层、每层几个神经元、用什么激活函数，按“训练”看网络怎样一点点画出分界线。</div>
+<div class="row"><span>数据</span>
+  <select id="ds"><option value="blobs">两团点（一条直线能分开）</option><option value="xor">四个角（异或）</option><option value="circle" selected>圆圈套圆点</option><option value="moons">两个月牙</option></select>
+  <span>隐藏层</span><select id="layers"><option value="0">0 层</option><option value="1" selected>1 层</option><option value="2">2 层</option></select>
+  <span>每层神经元</span><input type="range" id="H" min="1" max="8" value="4" style="max-width:110px" aria-label="每层神经元个数"><b id="Hv"></b></div>
+<div class="row"><span>激活函数</span>
+  <select id="act"><option value="linear">不用（线性）</option><option value="relu" selected>ReLU</option><option value="sigmoid">Sigmoid</option><option value="tanh">tanh</option></select>
+  <span>学习率</span><select id="lr"><option>0.01</option><option>0.03</option><option>0.1</option><option selected>0.3</option><option>1</option><option>3</option></select>
+  <button id="t10">训练 10 轮</button><button id="run" class="main">▶ 连续训练</button><button id="reset">重新开始</button></div>
+<div class="grid2">
+  <canvas id="cv" width="360" height="360" aria-label="数据与分界线"></canvas>
+  <div>
+    <svg id="net" viewBox="0 0 360 200" aria-label="网络结构"></svg>
+    <canvas id="lc" width="360" height="150" aria-label="损失曲线"></canvas>
+  </div>
+</div>
+<div class="kpi"><div>已训练轮数<b id="ep">0</b></div><div>损失（交叉熵）<b id="loss">—</b></div><div>准确率<b id="acc">—</b></div></div>
+<div class="msg" id="msg"></div>
+<div class="note">左图：绿点和红点是两类数据（各 100 个），底色是网络认为“属于绿类”的把握，越绿越像绿类；白色细线附近就是分界线。右上：网络结构，线越粗表示权重绝对值越大，蓝正红负。右下：损失随轮数的变化。训练方法是全批量梯度下降（第 2 章会讲），每轮用全部 200 个点更新一次参数。</div>
+<script src="../common/sim.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var seed = 1;
+  function rnd() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
+  function gauss() { var u = rnd() || 1e-9, v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  function makeData(kind) {
+    seed = 7; var P = [];
+    for (var i = 0; i < 200; i++) {
+      var c = i < 100 ? 1 : 0, x, y, a, r;
+      if (kind === "blobs") { x = (c ? 1.2 : -1.2) + gauss() * 0.55; y = (c ? 1.0 : -1.0) + gauss() * 0.55; }
+      else if (kind === "xor") { var sx = rnd() < 0.5 ? -1 : 1, sy = c ? sx : -sx; x = sx * (0.3 + rnd() * 1.7); y = sy * (0.3 + rnd() * 1.7); }
+      else if (kind === "circle") { a = rnd() * 6.283; r = c ? rnd() * 0.9 : 1.5 + rnd() * 0.6; x = r * Math.cos(a); y = r * Math.sin(a); }
+      else { a = rnd() * Math.PI; if (c) { x = Math.cos(a) * 1.4 - 0.5; y = Math.sin(a) * 1.4 - 0.4; } else { x = 0.5 - Math.cos(a) * 1.4; y = 0.4 - Math.sin(a) * 1.4; } x += gauss() * 0.15; y += gauss() * 0.15; }
+      P.push([x, y, c]);
+    }
+    return P;
+  }
+  var ACT = {
+    linear: { f: function (z) { return z; }, d: function () { return 1; } },
+    relu: { f: function (z) { return z > 0 ? z : 0; }, d: function (a) { return a > 0 ? 1 : 0; } },
+    sigmoid: { f: function (z) { return 1 / (1 + Math.exp(-z)); }, d: function (a) { return a * (1 - a); } },
+    tanh: { f: Math.tanh, d: function (a) { return 1 - a * a; } }
+  };
+  var data, sizes, W, B, act, lr, ep, hist, timer = null;
+  function reset() {
+    stop();
+    data = makeData($("ds").value);
+    var L = +$("layers").value, H = +$("H").value; $("Hv").textContent = H;
+    sizes = [2]; for (var l = 0; l < L; l++) sizes.push(H); sizes.push(1);
+    act = ACT[$("act").value]; lr = +$("lr").value; ep = 0; hist = [];
+    seed = 5; W = []; B = [];
+    for (l = 0; l < sizes.length - 1; l++) {
+      var s = Math.sqrt(2 / (sizes[l] + sizes[l + 1])), w = [];
+      for (var i = 0; i < sizes[l]; i++) { w.push([]); for (var j = 0; j < sizes[l + 1]; j++) w[i].push(gauss() * s * 1.5); }
+      W.push(w); B.push(new Array(sizes[l + 1]).fill(0.1));
+    }
+    draw(); $("msg").textContent = hint();
+  }
+  function forward(x) {
+    var as = [x];
+    for (var l = 0; l < W.length; l++) {
+      var a = as[l], out = [];
+      for (var j = 0; j < sizes[l + 1]; j++) {
+        var z = B[l][j]; for (var i = 0; i < a.length; i++) z += a[i] * W[l][i][j];
+        out.push(l === W.length - 1 ? 1 / (1 + Math.exp(-z)) : act.f(z));
+      }
+      as.push(out);
+    }
+    return as;
+  }
+  function epoch() {
+    var gW = W.map(function (w) { return w.map(function (r) { return r.map(function () { return 0; }); }); });
+    var gB = B.map(function (b) { return b.map(function () { return 0; }); });
+    var loss = 0, right = 0, n = data.length;
+    data.forEach(function (p) {
+      var as = forward([p[0], p[1]]), o = as[as.length - 1][0];
+      loss += -(p[2] * Math.log(o + 1e-9) + (1 - p[2]) * Math.log(1 - o + 1e-9));
+      if ((o > 0.5) === (p[2] === 1)) right++;
+      var delta = [o - p[2]];
+      for (var l = W.length - 1; l >= 0; l--) {
+        var a = as[l], nd = new Array(a.length).fill(0);
+        for (var i = 0; i < a.length; i++) for (var j = 0; j < delta.length; j++) { gW[l][i][j] += a[i] * delta[j]; nd[i] += W[l][i][j] * delta[j]; }
+        for (j = 0; j < delta.length; j++) gB[l][j] += delta[j];
+        if (l > 0) delta = nd.map(function (v, i) { return v * act.d(a[i]); });
+      }
+    });
+    for (var l = 0; l < W.length; l++) {
+      for (var i = 0; i < W[l].length; i++) for (var j = 0; j < W[l][i].length; j++) W[l][i][j] -= lr * gW[l][i][j] / n;
+      for (j = 0; j < B[l].length; j++) B[l][j] -= lr * gB[l][j] / n;
+    }
+    ep++; hist.push(loss / n);
+    return { loss: loss / n, acc: right / n };
+  }
+  function train(k) { var r; for (var i = 0; i < k; i++) r = epoch(); $("loss").textContent = r.loss.toFixed(3); $("acc").textContent = (r.acc * 100).toFixed(1) + "%"; $("ep").textContent = ep; draw(); $("msg").innerHTML = hint(r); }
+  function hint(r) {
+    var L = sizes.length - 2, k = $("ds").value, a = $("act").value;
+    if (!r) return "按“训练 10 轮”或“连续训练”开始。";
+    if (r.acc > 0.97) return '<span class="ok">分得很好！</span>试试减少神经元或换一组数据，看看最少需要多大的网络。';
+    if (ep < 300) return "继续训练，看分界线还会不会变。";
+    if (L === 0 && k !== "blobs") return '<span class="bad">没有隐藏层时，分界线只能是一条直线</span>，这组数据一条直线分不开。试试加一个隐藏层。';
+    if (a === "linear" && k !== "blobs") return '<span class="bad">激活函数选了“不用”，多少层叠起来也只能画直线</span>，这正是 1.3 节说的“非线性必不可少”。换成 ReLU 试试。';
+    return "还没分好：可以多加几个神经元、调大一点学习率，或者再多训练一会儿。";
+  }
+  function run() { if (timer) { stop(); return; } $("run").textContent = "⏸ 暂停"; timer = setInterval(function () { train(10); if (ep >= 3000) stop(); }, 30); }
+  function stop() { if (timer) clearInterval(timer); timer = null; $("run").textContent = "▶ 连续训练"; }
+  function draw() {
+    var cv = $("cv"), g = cv.getContext("2d"), S = cv.width, R = 2.6, step = 6;
+    for (var px = 0; px < S; px += step) for (var py = 0; py < S; py += step) {
+      var x = (px / S) * 2 * R - R, y = R - (py / S) * 2 * R, o = forward([x, y]);
+      o = o[o.length - 1][0];
+      var t = Math.abs(o - 0.5) * 2, edge = t < 0.06;
+      g.fillStyle = edge ? "#ffffff" : (o > 0.5 ? "rgba(67,160,71," + (0.12 + 0.5 * t) + ")" : "rgba(229,57,53," + (0.12 + 0.5 * t) + ")");
+      g.fillRect(px, py, step, step);
+    }
+    data.forEach(function (p) {
+      g.beginPath(); g.arc((p[0] + R) / (2 * R) * S, (R - p[1]) / (2 * R) * S, 3.5, 0, 6.283);
+      g.fillStyle = p[2] ? "#2e7d32" : "#c62828"; g.fill(); g.strokeStyle = "#fff"; g.lineWidth = 1; g.stroke();
+    });
+    // 网络结构
+    var svg = $("net"), html = "", cols = sizes.length, pos = [];
+    for (var l = 0; l < cols; l++) { pos.push([]); for (var i = 0; i < sizes[l]; i++) pos[l].push([30 + l * (300 / (cols - 1)), 100 + (i - (sizes[l] - 1) / 2) * 22]); }
+    for (l = 0; l < W.length; l++) for (i = 0; i < sizes[l]; i++) for (var j = 0; j < sizes[l + 1]; j++) {
+      var w = W[l][i][j], a1 = pos[l][i], a2 = pos[l + 1][j];
+      html += '<line x1="' + a1[0] + '" y1="' + a1[1] + '" x2="' + a2[0] + '" y2="' + a2[1] + '" stroke="' + (w > 0 ? "#1e88e5" : "#e53935") + '" stroke-width="' + Math.min(4, 0.3 + Math.abs(w)).toFixed(2) + '" opacity="0.6"/>';
+    }
+    var names = ["输入", "隐藏层 1", "隐藏层 2"];
+    for (l = 0; l < cols; l++) {
+      pos[l].forEach(function (p) { html += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="7" fill="#fff" stroke="#3f51b5" stroke-width="2"/>'; });
+      html += '<text x="' + pos[l][0][0] + '" y="196" font-size="11" text-anchor="middle" fill="#78909c">' + (l === cols - 1 ? "输出" : names[l]) + "</text>";
+    }
+    svg.innerHTML = html;
+    // 损失曲线
+    var lc = $("lc"), c = lc.getContext("2d"); c.clearRect(0, 0, lc.width, lc.height);
+    c.strokeStyle = "#cfd8dc"; c.strokeRect(30, 8, 320, 120); c.fillStyle = "#78909c"; c.font = "11px sans-serif";
+    c.fillText("损失", 2, 16); c.fillText("轮数 →", 300, 145);
+    if (hist.length > 1) {
+      var mx = Math.max.apply(null, hist), n = Math.max(hist.length, 100);
+      c.beginPath(); c.strokeStyle = "#3f51b5"; c.lineWidth = 2;
+      hist.forEach(function (v, k) { var X = 30 + k / n * 320, Y = 128 - v / mx * 115; if (k) c.lineTo(X, Y); else c.moveTo(X, Y); });
+      c.stroke();
+    }
+  }
+  ["ds", "layers", "H", "act", "lr"].forEach(function (id) { $(id).addEventListener("input", reset); });
+  $("t10").onclick = function () { train(10); };
+  $("run").onclick = run;
+  $("reset").onclick = reset;
+  reset();
+})();
+</script>
+</body>
+</html>

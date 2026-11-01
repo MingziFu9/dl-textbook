@@ -1,8 +1,8 @@
 # 站点名、描述、网址和 nav 由 python tools/course.py sync 根据 course.yml 生成，请改 course.yml，不要手改这几项
-site_name: 课程名称
-site_description: 面向成人教育人工智能技术应用专业（专科）的《课程名称》教材，每章配套动手实验
-site_url: https://mingzifu9.github.io/ai-textbook-template/
-repo_url: https://github.com/MingziFu9/ai-textbook-template
+site_name: 神经网络与深度学习
+site_description: 面向成人教育人工智能技术应用专业（专科）的《神经网络与深度学习》教材，10 章 27 个 PyTorch 动手实验
+site_url: https://mingzifu9.github.io/dl-textbook/
+repo_url: https://github.com/MingziFu9/dl-textbook
 docs_dir: docs
 theme:
   name: material
@@ -37,15 +37,24 @@ extra_javascript:
 nav:
   - 首页: index.md
   - 课程描述: course-description.md
-  - "第 1 章 示例章": chapters/01-sample/index.md
+  - "第 1 章 初识神经网络：从一个神经元说起": chapters/01-neuron/index.md
+  - "第 2 章 训练的本质：损失函数与梯度下降": chapters/02-training/index.md
+  - "第 3 章 反向传播：误差怎么往回传": chapters/03-backprop/index.md
+  - "第 4 章 把模型训练好：过拟合与调优": chapters/04-generalization/index.md
+  - "第 5 章 卷积神经网络：为图像而生": chapters/05-cnn/index.md
+  - "第 6 章 序列模型：从 RNN 到 Transformer": chapters/06-sequence/index.md
+  - "第 7 章 图像分类实战与迁移学习": chapters/07-image-transfer/index.md
+  - "第 8 章 文本分类实战与预训练模型": chapters/08-text/index.md
+  - "第 9 章 生成模型：让网络学会“创作”": chapters/09-generative/index.md
+  - "第 10 章 深度强化学习、伦理与综合项目": chapters/10-drl-project/index.md
   - 交互动画:
     - sims/index.md
     - "示例动画：点击计数器": sims/example-counter/index.md
   - 学习图谱: learning-graph/index.md
   - 常见问题: faq/index.md
+  - "期末模拟卷": mock-exam.md
   - 证书考点对照: certificate.md
   - 附录:
-    - "附录 A Python 速查": appendix/a-python.md
-    - "附录 B 工具库速查": appendix/b-libraries.md
-    - "附录 C 实验环境与数据说明": appendix/c-environment.md
-    - "附录 D 术语表": appendix/glossary.md
+    - "附录 A PyTorch 速查": appendix/a-pytorch.md
+    - "附录 B 实验环境、数据与算力说明": appendix/b-environment.md
+    - "附录 C 术语表": appendix/glossary.md

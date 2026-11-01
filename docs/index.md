@@ -1,4 +1,4 @@
-# 课程名称
+# 神经网络与深度学习
 
 **面向成人教育人工智能技术应用专业（专科）的《课程名称》教材**
 
@@ -6,9 +6,9 @@
 
 <!-- course:start -->
 !!! abstract "课程信息"
-    4 学分 · 72 学时（理论 60 学时 + 实验 12 学时） · 第 3 学期 · 1 章 · 3 个实验 · 期末闭卷
+    3 学分 · 54 学时（理论 36 学时 + 实验 18 学时） · 第 3 学期 · 10 章 · 27 个实验 · 期末开卷
 
-    对应证书：证书名称（级别）
+    对应证书：人工智能训练师（三级）、人工智能数据处理工程师（高级）、Python 技术应用工程师（高级）、人工智能应用工程师（高级）
 <!-- course:end -->
 
 ## 这本书讲什么
@@ -41,9 +41,18 @@
 <!-- toc:start -->
 | 章节 | 实验 |
 |---|---|
-| [第 1 章 示例章](chapters/01-sample/index.md) | 实验 1-1 ★ 示例实验 |
+| [第 1 章 初识神经网络：从一个神经元说起](chapters/01-neuron/index.md) | 实验 1-1 ★ 实验名称<br>实验 1-2 ★ 实验名称 |
+| [第 2 章 训练的本质：损失函数与梯度下降](chapters/02-training/index.md) | 实验 2-1 ★ 实验名称<br>实验 2-2 ★ 实验名称<br>实验 2-3 ★ 实验名称 |
+| [第 3 章 反向传播：误差怎么往回传](chapters/03-backprop/index.md) | 实验 3-1 ★ 实验名称<br>实验 3-2 ★ 实验名称 |
+| [第 4 章 把模型训练好：过拟合与调优](chapters/04-generalization/index.md) | 实验 4-1 ★ 实验名称<br>实验 4-2 ★ 实验名称<br>实验 4-3 ★ 实验名称 |
+| [第 5 章 卷积神经网络：为图像而生](chapters/05-cnn/index.md) | 实验 5-1 ★ 实验名称<br>实验 5-2 ★ 实验名称<br>实验 5-3 ★ 实验名称 |
+| [第 6 章 序列模型：从 RNN 到 Transformer](chapters/06-sequence/index.md) | 实验 6-1 ★ 实验名称<br>实验 6-2 ★ 实验名称<br>实验 6-3 ★ 实验名称 |
+| [第 7 章 图像分类实战与迁移学习](chapters/07-image-transfer/index.md) | 实验 7-1 ★ 实验名称<br>实验 7-2 ★ 实验名称<br>实验 7-3 ★ 实验名称 |
+| [第 8 章 文本分类实战与预训练模型](chapters/08-text/index.md) | 实验 8-1 ★ 实验名称<br>实验 8-2 ★ 实验名称<br>实验 8-3 ★ 实验名称 |
+| [第 9 章 生成模型：让网络学会“创作”](chapters/09-generative/index.md) | 实验 9-1 ★ 实验名称<br>实验 9-2 ★ 实验名称<br>实验 9-3 ★ 实验名称 |
+| [第 10 章 深度强化学习、伦理与综合项目](chapters/10-drl-project/index.md) | 实验 10-1 ★ 实验名称<br>实验 10-2 ★ 实验名称 |
 
-附录：[A Python 速查](appendix/a-python.md) · [B 工具库速查](appendix/b-libraries.md) · [C 实验环境与数据说明](appendix/c-environment.md) · [D 术语表](appendix/glossary.md)
+附录：[A PyTorch 速查](appendix/a-pytorch.md) · [B 实验环境、数据与算力说明](appendix/b-environment.md) · [C 术语表](appendix/glossary.md)
 <!-- toc:end -->
 
 ## 配套资源

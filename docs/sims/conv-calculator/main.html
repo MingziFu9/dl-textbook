@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>卷积计算器</title>
+<link rel="stylesheet" href="../common/sim.css">
+<style>
+  .stage { display:flex; gap:18px; flex-wrap:wrap; align-items:flex-start; margin-top:8px; }
+  .panel h2 { font-size:13px; margin:0 0 4px; color:var(--muted); font-weight:600; }
+  table.g { border-collapse:collapse; }
+  table.g td { width:30px; height:30px; text-align:center; font-size:12.5px; border:1px solid #cfd8dc; font-variant-numeric:tabular-nums; cursor:default; }
+  table.g td.pad { color:#b0bec5; background:repeating-linear-gradient(45deg,#fafafa,#fafafa 4px,#eceff1 4px,#eceff1 8px); }
+  table.g td.win { outline:3px solid #ff9800; outline-offset:-3px; }
+  table.g td.cur { outline:3px solid #ff9800; outline-offset:-3px; font-weight:bold; }
+  table.g td.pool { outline:2px dashed #3f51b5; outline-offset:-2px; }
+  #inp td.cell { cursor:pointer; }
+  .calc { font-size:13px; line-height:1.8; }
+  .ex button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .sl { display:grid; grid-template-columns:4em auto; gap:6px; align-items:center; font-size:13px; }
+</style>
+</head>
+<body>
+<h1>卷积计算器：卷积核在图上滑一格，算一个数</h1>
+<div class="sub">左边是输入图（数字是像素亮度，点格子可以在 0 和 1 之间切换），中间是 3×3 卷积核，右边是特征图。橙框是当前位置：对应格子相乘再相加，就得到特征图上的一个数。</div>
+
+<div class="row ex" id="pre"></div>
+<div class="row ex" id="ker"></div>
+<div class="row"><span class="sl"><span>步长 s</span><span><button data-s="1" class="on">1</button> <button data-s="2">2</button></span></span>
+  <span class="sl"><span>填充 p</span><span><button data-p="0" class="on">0</button> <button data-p="1">1</button></span></span></div>
+<div class="row"><button class="main" id="next">下一个位置 ▶</button><button id="allb">全部算完</button><button id="reset">从头算</button><button id="poolb">2×2 最大池化</button></div>
+
+<div class="stage">
+  <div class="panel"><h2 id="ih">输入</h2><table class="g" id="inp"></table></div>
+  <div class="panel"><h2>卷积核</h2><table class="g" id="kt"></table></div>
+  <div class="panel"><h2 id="oh">特征图</h2><table class="g" id="outt"></table></div>
+  <div class="panel" id="pp" hidden><h2 id="ph">池化后</h2><table class="g" id="pt"></table></div>
+</div>
+<div class="box calc" id="calc"></div>
+
+<script>
+(function () {
+  var PRE = [
+    { n:"左暗右亮（5×5，同《机器学习》实验 11-1）", x:[[0,0,1,1,1],[0,0,1,1,1],[0,0,1,1,1],[0,0,1,1,1],[0,0,1,1,1]] },
+    { n:"十字（6×6）", x:[[0,0,1,1,0,0],[0,0,1,1,0,0],[1,1,1,1,1,1],[1,1,1,1,1,1],[0,0,1,1,0,0],[0,0,1,1,0,0]] },
+    { n:"上暗下亮（6×6）", x:[[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[1,1,1,1,1,1],[1,1,1,1,1,1],[1,1,1,1,1,1]] },
+    { n:"斜线（6×6）", x:[[1,0,0,0,0,0],[0,1,0,0,0,0],[0,0,1,0,0,0],[0,0,0,1,0,0],[0,0,0,0,1,0],[0,0,0,0,0,1]] }
+  ];
+  var KER = [
+    { n:"竖边", k:[[-1,0,1],[-1,0,1],[-1,0,1]], say:"右边减左边：遇到“左暗右亮”的竖直边缘输出大的正数，颜色均匀的地方输出 0。" },
+    { n:"横边", k:[[-1,-1,-1],[0,0,0],[1,1,1]], say:"下边减上边：遇到“上暗下亮”的水平边缘输出大的正数。" },
+    { n:"模糊（平均）", k:[[1/9,1/9,1/9],[1/9,1/9,1/9],[1/9,1/9,1/9]], say:"九个格子取平均，图像变得平滑。" },
+    { n:"锐化", k:[[0,-1,0],[-1,5,-1],[0,-1,0]], say:"中间放大、减去四周：和周围差别大的地方更突出。" }
+  ];
+  var X, K = 0, s = 1, p = 0, pos = 0, pool = false, P = 0;
+  function fmt(v) { return Math.abs(v - Math.round(v)) < 1e-9 ? String(Math.round(v)) : v.toFixed(2); }
+  function padded() { var n = X.length, m = n + 2 * p, a = []; for (var i = 0; i < m; i++) { a.push([]); for (var j = 0; j < m; j++) { var r = i - p, c = j - p; a[i].push(r >= 0 && c >= 0 && r < n && c < n ? X[r][c] : null); } } return a; }
+  function outSize() { return Math.floor((X.length + 2 * p - 3) / s) + 1; }
+  function conv() {
+    var a = padded(), o = outSize(), k = KER[K].k, out = [];
+    for (var i = 0; i < o; i++) { out.push([]); for (var j = 0; j < o; j++) { var v = 0; for (var u = 0; u < 3; u++) for (var w = 0; w < 3; w++) v += (a[i * s + u][j * s + w] || 0) * k[u][w]; out[i].push(Math.abs(v) < 1e-12 ? 0 : v); } }
+    return out;
+  }
+  function shade(v, lo, hi) { var t = hi > lo ? (v - lo) / (hi - lo) : 0.5; var g = Math.round(255 - t * 200); return "background:rgb(" + g + "," + g + "," + Math.min(255, g + 20) + ");color:" + (t > 0.6 ? "#fff" : "#263238"); }
+  function draw() {
+    var a = padded(), m = a.length, o = outSize(), out = conv(), total = o * o, ci = Math.floor((pos - 1) / o), cj = (pos - 1) % o, k = KER[K].k, h = "";
+    for (var i = 0; i < m; i++) {
+      h += "<tr>";
+      for (var j = 0; j < m; j++) {
+        var v = a[i][j], inWin = pos > 0 && i >= ci * s && i < ci * s + 3 && j >= cj * s && j < cj * s + 3;
+        h += '<td class="' + (v === null ? "pad" : "cell") + (inWin ? " win" : "") + '" data-i="' + (i - p) + '" data-j="' + (j - p) + '" style="' + (v === null ? "" : shade(v, 0, 1)) + '">' + (v === null ? "0" : fmt(v)) + "</td>";
+      }
+      h += "</tr>";
+    }
+    document.getElementById("inp").innerHTML = h;
+    document.getElementById("ih").textContent = "输入 " + X.length + "×" + X.length + (p ? "（四周补 1 圈 0 → " + m + "×" + m + "）" : "");
+    document.getElementById("kt").innerHTML = k.map(function (r) { return "<tr>" + r.map(function (v) { return '<td style="background:' + (v > 0 ? "#ffebee" : v < 0 ? "#e3f2fd" : "#fff") + '">' + (K === 2 ? "1/9" : fmt(v)) + "</td>"; }).join("") + "</tr>"; }).join("");
+    var flat = [].concat.apply([], out), lo = Math.min.apply(null, flat), hi = Math.max.apply(null, flat), oh = "";
+    for (i = 0; i < o; i++) {
+      oh += "<tr>";
+      for (j = 0; j < o; j++) {
+        var idx = i * o + j + 1, show = idx <= pos;
+        var inPool = pool && P > 0 && Math.floor(i / 2) === Math.floor((P - 1) / Math.floor(o / 2)) && Math.floor(j / 2) === (P - 1) % Math.floor(o / 2) && i < Math.floor(o / 2) * 2 && j < Math.floor(o / 2) * 2;
+        oh += '<td class="' + (idx === pos ? "cur" : "") + (inPool ? " pool" : "") + '" style="' + (show ? shade(out[i][j], lo, hi) : "") + '">' + (show ? fmt(out[i][j]) : "") + "</td>";
+      }
+      oh += "</tr>";
+    }
+    document.getElementById("outt").innerHTML = oh;
+    document.getElementById("oh").textContent = "特征图 " + o + "×" + o + "（(" + X.length + " + 2×" + p + " − 3) ÷ " + s + " + 1 = " + o + "）";
+    var c = document.getElementById("calc");
+    if (pos === 0) c.innerHTML = KER[K].say + "<br>点“下一个位置”，卷积核从左上角开始，每次向右移动 " + s + " 格，到头后换到下一行。";
+    else {
+      var terms = [];
+      for (var u = 0; u < 3; u++) for (var w = 0; w < 3; w++) { var xv = a[ci * s + u][cj * s + w] || 0; terms.push(fmt(xv) + "×" + (K === 2 ? "1/9" : "(" + fmt(k[u][w]) + ")")); }
+      c.innerHTML = "第 " + pos + " / " + total + " 个位置（特征图第 " + (ci + 1) + " 行第 " + (cj + 1) + " 列）：<br><span class='mono'>" + terms.join(" + ") + " = <b>" + fmt(out[ci][cj]) + "</b></span><br>" + KER[K].say;
+    }
+    var pp = document.getElementById("pp"); pp.hidden = !pool;
+    if (pool) {
+      var q = Math.floor(o / 2), ph = "";
+      for (i = 0; i < q; i++) { ph += "<tr>"; for (j = 0; j < q; j++) { var mx = Math.max(out[2 * i][2 * j], out[2 * i][2 * j + 1], out[2 * i + 1][2 * j], out[2 * i + 1][2 * j + 1]); ph += '<td class="' + (P === i * q + j + 1 ? "cur" : "") + '" style="' + shade(mx, lo, hi) + '">' + fmt(mx) + "</td>"; } ph += "</tr>"; }
+      document.getElementById("pt").innerHTML = ph;
+      document.getElementById("ph").textContent = q ? "2×2 最大池化 → " + q + "×" + q : "特征图太小，不能池化";
+      if (q) c.innerHTML += "<br>最大池化：特征图每个 2×2 的格子（虚线框）只留最大值，尺寸减半" + (o % 2 ? "，多出的一行一列丢掉" : "") + "。再点“2×2 最大池化”看下一个格子。";
+    }
+    document.getElementById("next").disabled = pos >= total;
+  }
+  function reset() { pos = 0; pool = false; P = 0; draw(); }
+  function setPre(i) { X = PRE[i].x.map(function (r) { return r.slice(); }); document.querySelectorAll("#pre button").forEach(function (b) { b.classList.toggle("on", +b.dataset.i === i); }); reset(); }
+  document.getElementById("pre").innerHTML = "<span class='lbl'>输入图：</span>" + PRE.map(function (q, i) { return "<button data-i='" + i + "'>" + q.n + "</button>"; }).join("");
+  document.getElementById("ker").innerHTML = "<span class='lbl'>卷积核：</span>" + KER.map(function (q, i) { return "<button data-k='" + i + "'" + (i === 0 ? " class='on'" : "") + ">" + q.n + "</button>"; }).join("");
+  document.querySelectorAll("#pre button").forEach(function (b) { b.onclick = function () { setPre(+b.dataset.i); }; });
+  document.querySelectorAll("#ker button").forEach(function (b) { b.onclick = function () { K = +b.dataset.k; document.querySelectorAll("#ker button").forEach(function (x) { x.classList.toggle("on", x === b); }); reset(); }; });
+  document.querySelectorAll("[data-s]").forEach(function (b) { b.onclick = function () { s = +b.dataset.s; document.querySelectorAll("[data-s]").forEach(function (x) { x.classList.toggle("on", x === b); }); reset(); }; });
+  document.querySelectorAll("[data-p]").forEach(function (b) { b.onclick = function () { p = +b.dataset.p; document.querySelectorAll("[data-p]").forEach(function (x) { x.classList.toggle("on", x === b); }); reset(); }; });
+  document.getElementById("inp").onclick = function (e) { var td = e.target.closest("td.cell"); if (!td) return; var i = +td.dataset.i, j = +td.dataset.j; X[i][j] = X[i][j] ? 0 : 1; draw(); };
+  document.getElementById("next").onclick = function () { var o = outSize(); if (pos < o * o) pos++; draw(); };
+  document.getElementById("allb").onclick = function () { var o = outSize(); pos = o * o; draw(); };
+  document.getElementById("reset").onclick = reset;
+  document.getElementById("poolb").onclick = function () { var o = outSize(), q = Math.floor(o / 2); pos = o * o; pool = true; P = q ? P % (q * q) + 1 : 0; draw(); };
+  window.CONV = { conv: conv, set: function (pi, k, ss, pp) { setPre(pi); K = k; s = ss; p = pp; return conv(); } };
+  setPre(0);
+})();
+</script>
+<script src="../common/sim.js"></script>
+</body>
+</html>

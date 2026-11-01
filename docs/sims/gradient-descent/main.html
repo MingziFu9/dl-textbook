@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>梯度下降下山</title>
+<link rel="stylesheet" href="../common/sim.css">
+<style>
+canvas { width:100%; height:auto; border:1px solid var(--line); border-radius:6px; background:#fff; }
+.kpi { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:6px; }
+@media (max-width:620px) { .kpi { grid-template-columns:repeat(2,1fr); } }
+.kpi div { border:1px solid var(--line); border-radius:6px; padding:4px 8px; font-size:12px; }
+.kpi b { display:block; font-size:15px; font-variant-numeric:tabular-nums; }
+</style>
+</head>
+<body>
+<h1>梯度下降下山：选一个学习率，看参数怎样一步步走到损失最低的地方</h1>
+<div class="sub">数据是 3.2.3 节的 5 套房子，可以选择面积是否先标准化。左图是损失（均方误差）随 w、b 变化的“地形图”，颜色越浅损失越小，★ 是最低点；右图是当前参数对应的直线。</div>
+<div class="row"><span>面积</span><button class="on" id="m0">标准化</button><button id="m1">不标准化（原始平方米）</button></div>
+<div class="row"><span>学习率</span><input type="range" id="lr" min="0" max="7" step="1" value="2" aria-label="学习率"><b id="lrv"></b></div>
+<div class="row"><button class="main" id="step">走一步</button><button id="run">连走 20 步</button><button id="run200">连走 200 步</button><button id="reset">回到起点</button><span class="note" id="hint" style="margin:0"></span></div>
+<div class="grid2">
+  <canvas id="cv" width="420" height="360"></canvas>
+  <canvas id="fit" width="420" height="360"></canvas>
+</div>
+<div class="kpi"><div>步数<b id="k"></b></div><div><span id="wl">w（标准化后）</span><b id="w"></b></div><div>b<b id="b"></b></div><div>损失 MSE<b id="loss"></b></div></div>
+<div class="msg" id="msg"></div>
+<div class="note">更新公式：w ← w − 学习率 × ∂L/∂w，b ← b − 学习率 × ∂L/∂b。标准化时最低点 w = 72.12、b = 260，换算回原始面积就是 总价 = 2.55 × 面积 + 30.5，MSE = 38，与《机器学习》实验 3-1 一致；不标准化时最低点就是 w = 2.55、b = 30.5。</div>
+<script>
+(function () {
+  var AREA = [50, 70, 90, 110, 130], Y = [160, 210, 250, 320, 360];
+  var SD = Math.sqrt(AREA.reduce(function (s, a) { return s + (a - 90) * (a - 90); }, 0) / 5);
+  var MODES = [
+    { x: AREA.map(function (a) { return (a - 90) / SD; }), lrs: [0.01, 0.05, 0.1, 0.3, 0.5, 0.9, 1.0, 1.05], box: [-40, 160, 0, 420], best: [72.12, 260], wl: "w（标准化后）" },
+    { x: AREA, lrs: [0.00002, 0.00005, 0.0001, 0.00015, 0.0002, 0.00022, 0.0003, 0.0005], box: [-1, 5, -60, 420], best: [2.55, 30.5], wl: "w（每平方米万元）" }
+  ];
+  var mode = 0, Z = MODES[0].x, LRS = MODES[0].lrs, WMIN, WMAX, BMIN, BMAX;
+  var w, b, k, path;
+  function loss(w, b) { var s = 0; for (var i = 0; i < 5; i++) { var e = w * Z[i] + b - Y[i]; s += e * e; } return s / 5; }
+  function grad(w, b) { var gw = 0, gb = 0; for (var i = 0; i < 5; i++) { var e = w * Z[i] + b - Y[i]; gw += 2 / 5 * e * Z[i]; gb += 2 / 5 * e; } return [gw, gb]; }
+  var cv = document.getElementById("cv"), ctx = cv.getContext("2d"), W = cv.width, H = cv.height;
+  function px(w) { return 30 + (w - WMIN) / (WMAX - WMIN) * (W - 40); } function py(b) { return H - 26 - (b - BMIN) / (BMAX - BMIN) * (H - 36); }
+  var bg = document.createElement("canvas"); bg.width = W; bg.height = H;
+  function drawBg() {
+    WMIN = MODES[mode].box[0]; WMAX = MODES[mode].box[1]; BMIN = MODES[mode].box[2]; BMAX = MODES[mode].box[3];
+    var g = bg.getContext("2d"), img = g.createImageData(W, H), mx = Math.log(loss(WMIN, BMIN) + 1);
+    for (var yy = 0; yy < H; yy++) for (var xx = 0; xx < W; xx++) {
+      var ww = WMIN + (xx - 30) / (W - 40) * (WMAX - WMIN), bbv = BMIN + (H - 26 - yy) / (H - 36) * (BMAX - BMIN);
+      var t = Math.log(loss(ww, bbv) + 1) / mx; var band = Math.floor(t * 14) % 2 ? 0.94 : 1;
+      var c = [63 + (232 - 63) * (1 - t), 81 + (234 - 81) * (1 - t), 181 + (246 - 181) * (1 - t)], o = (yy * W + xx) * 4;
+      img.data[o] = c[0] * band; img.data[o + 1] = c[1] * band; img.data[o + 2] = c[2] * band; img.data[o + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+  }
+  function draw() {
+    ctx.drawImage(bg, 0, 0);
+    ctx.fillStyle = "#263238"; ctx.font = "12px sans-serif";
+    ctx.fillText("w →", W - 30, H - 30); ctx.fillText("b ↑", 34, 14);
+    (mode ? [0, 1, 2, 3, 4] : [0, 50, 100, 150]).forEach(function (v) { ctx.fillText(v, px(v) - 6, H - 8); });
+    [100, 200, 300, 400].forEach(function (v) { ctx.fillText(v, 2, py(v) + 4); });
+    ctx.strokeStyle = "#e53935"; ctx.lineWidth = 1.5; ctx.beginPath();
+    path.forEach(function (p, i) { var x = Math.max(-50, Math.min(W + 50, px(p[0]))), y = Math.max(-50, Math.min(H + 50, py(p[1]))); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    ctx.stroke();
+    var bst = MODES[mode].best; ctx.font = "18px sans-serif"; ctx.fillStyle = "#ef6c00"; ctx.fillText("★", px(bst[0]) - 8, py(bst[1]) + 6);
+    var shown = path.length > 60 ? path.filter(function (p, i) { return i % Math.ceil(path.length / 60) === 0 || i === path.length - 1; }) : path;
+    shown.forEach(function (p, i) { ctx.fillStyle = i === shown.length - 1 ? "#e53935" : "#fff"; ctx.strokeStyle = "#e53935"; ctx.beginPath(); ctx.arc(px(p[0]), py(p[1]), i === shown.length - 1 ? 5 : 3, 0, 7); ctx.fill(); ctx.stroke(); });
+    // 右图：数据和当前直线
+    var f = document.getElementById("fit"), c2 = f.getContext("2d"), FW = f.width, FH = f.height;
+    function fx(a) { return 40 + (a - 40) / 100 * (FW - 50); } function fy(v) { return FH - 26 - v / 450 * (FH - 36); }
+    c2.clearRect(0, 0, FW, FH); c2.strokeStyle = "#eceff1"; c2.fillStyle = "#78909c"; c2.font = "12px sans-serif";
+    for (var v = 0; v <= 400; v += 100) { c2.beginPath(); c2.moveTo(40, fy(v)); c2.lineTo(FW - 10, fy(v)); c2.stroke(); c2.fillText(v, 8, fy(v) + 4); }
+    [50, 70, 90, 110, 130].forEach(function (a) { c2.fillText(a, fx(a) - 8, FH - 8); });
+    c2.fillText("面积（平方米）→  总价（万元）↑", FW - 190, 14);
+    c2.save(); c2.beginPath(); c2.rect(40, 0, FW - 50, FH - 26); c2.clip();
+    c2.strokeStyle = "#e53935"; c2.lineWidth = 2; c2.beginPath();
+    [40, 140].forEach(function (a, i) { var v = w * (mode ? a : (a - 90) / SD) + b; i ? c2.lineTo(fx(a), fy(v)) : c2.moveTo(fx(a), fy(v)); });
+    c2.stroke(); c2.restore();
+    AREA.forEach(function (a, i) {
+      var pr = w * Z[i] + b; c2.strokeStyle = "#90a4ae"; c2.setLineDash([3, 3]); c2.beginPath(); c2.moveTo(fx(a), fy(Y[i])); c2.lineTo(fx(a), fy(Math.max(-50, Math.min(500, pr)))); c2.stroke(); c2.setLineDash([]);
+      c2.fillStyle = "#263238"; c2.beginPath(); c2.arc(fx(a), fy(Y[i]), 5, 0, 7); c2.fill();
+    });
+    var L = loss(w, b);
+    document.getElementById("k").textContent = k;
+    document.getElementById("wl").textContent = MODES[mode].wl;
+    document.getElementById("w").textContent = Math.abs(w) < 1e5 ? w.toFixed(mode ? 3 : 2) : w.toExponential(2);
+    document.getElementById("b").textContent = Math.abs(b) < 1e5 ? b.toFixed(2) : b.toExponential(2);
+    document.getElementById("loss").textContent = L < 1e6 ? L.toFixed(1) : L.toExponential(2);
+    var lr = LRS[+document.getElementById("lr").value], m;
+    if (!isFinite(L) || L > 1e6) m = '<span class="bad">发散了：步子太大，每一步都越过谷底、跳到更高的地方，损失越来越大。</span>';
+    else if (L < 38.5) m = '<span class="ok">到达谷底：损失约等于最小值 38，直线已经和最小二乘的结果一样。</span>';
+    else if (mode === 1 && k >= 20) m = "不标准化时，w 方向很陡、b 方向很平：学习率稍大就在 w 方向发散，学习率小了 b 又几乎不动。" + k + " 步后损失 " + L.toFixed(1) + "，离最小值 38 还很远。这就是梯度下降前要先标准化特征的原因。";
+    else if (mode === 0 && lr >= 0.9 && k > 1) m = "步子偏大：参数在谷底两侧来回跳（看左图的折线），虽然最终也能收敛，但走了弯路。";
+    else if (mode === 0 && lr <= 0.05 && k >= 10) m = "步子太小：方向是对的，但走得很慢，" + k + " 步了离谷底还很远。";
+    else m = "红线是走过的路。每一步都沿着当前位置最陡的下坡方向走。";
+    document.getElementById("msg").innerHTML = m;
+    document.getElementById("lrv").textContent = lr;
+    document.getElementById("m0").className = mode ? "" : "on"; document.getElementById("m1").className = mode ? "on" : "";
+  }
+  function reset() { w = 0; b = 0; k = 0; path = [[0, 0]]; draw(); }
+  function step() { var lr = LRS[+document.getElementById("lr").value], g = grad(w, b); w -= lr * g[0]; b -= lr * g[1]; k++; path.push([w, b]); draw(); }
+  document.getElementById("step").onclick = step;
+  document.getElementById("run").onclick = function () { var n = 0; var t = setInterval(function () { step(); if (++n >= 20) clearInterval(t); }, 90); };
+  document.getElementById("run200").onclick = function () { for (var i = 0; i < 199; i++) { var lr = LRS[+document.getElementById("lr").value], g = grad(w, b); w -= lr * g[0]; b -= lr * g[1]; k++; path.push([w, b]); } step(); };
+  function setMode(m) { mode = m; Z = MODES[m].x; LRS = MODES[m].lrs; document.getElementById("lr").value = 2; drawBg(); reset(); }
+  document.getElementById("m0").onclick = function () { setMode(0); };
+  document.getElementById("m1").onclick = function () { setMode(1); };
+  document.getElementById("reset").onclick = reset;
+  document.getElementById("lr").oninput = reset;
+  document.getElementById("hint").textContent = "换学习率会回到起点 (w, b) = (0, 0)";
+  drawBg();
+  reset();
+})();
+</script>
+<script src="../common/sim.js"></script>
+</body>
+</html>
